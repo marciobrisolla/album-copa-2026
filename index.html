@@ -165,24 +165,21 @@ html, body {
 }
 .actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr;
   gap: 6px;
   margin-top: 8px;
 }
 .action-btn {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  color: var(--text-dim);
-  padding: 8px 4px;
+  color: var(--text);
+  padding: 10px 12px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 .action-btn:active { background: var(--bg-card-hover); }
-.action-btn.danger {
-  color: var(--danger);
-  border-color: rgba(239,68,68,0.3);
-}
 .legend {
   background: var(--bg-card);
   margin: 12px;
@@ -393,10 +390,7 @@ html, body {
     <button class="filter-btn" data-filter="dupe">Repetidas</button>
   </div>
   <div class="actions">
-    <button class="action-btn" id="btn-trades">🤝 Lista Troca</button>
-    <button class="action-btn" id="btn-export">⬇ Backup</button>
-    <button class="action-btn" id="btn-import">⬆ Restaurar</button>
-    <button class="action-btn danger" id="btn-reset">🔒 Limpar</button>
+    <button class="action-btn" id="btn-trades">🤝 Gerar lista para troca (copiar para WhatsApp)</button>
   </div>
 </div>
 
@@ -413,14 +407,13 @@ html, body {
   <textarea id="notes" placeholder="Ex: Combinado com Pedro na quarta — troco minhas BRA-12 e ARG-5 pelas FRA-3 e POR-7."></textarea>
 </div>
 
-<input type="file" id="file-import" accept=".json,application/json" style="display:none">
+
 
 <!-- Firebase SDKs (modular v10) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
-  getDatabase, ref, onValue, set, remove, get, child, update,
-  goOffline, goOnline
+  getDatabase, ref, onValue, set, remove
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 // === CONFIGURAÇÃO FIREBASE ===
@@ -437,11 +430,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const COLLECTION_PATH = "album/main";
-
-// Senha de proteção do botão Limpar.
-// IMPORTANTE: o JavaScript é público (qualquer um vê esta linha no código fonte).
-// Esta senha serve apenas como TRAVA contra cliques acidentais, não como segurança real.
-const RESET_PASSWORD = "panini2026";
 
 // === DADOS: 48 seleções classificadas para a Copa 2026 ===
 const TEAMS = [
@@ -463,7 +451,7 @@ const TEAMS = [
   { code: "KOR", name: "Coreia do Sul", flag: "🇰🇷", conf: "AFC" },
   { code: "CIV", name: "Costa do Marfim", flag: "🇨🇮", conf: "CAF" },
   { code: "CRO", name: "Croácia", flag: "🇭🇷", conf: "UEFA" },
-  { code: "CUR", name: "Curaçao", flag: "🇨🇼", conf: "CONCACAF" },
+  { code: "CUW", name: "Curaçao", flag: "🇨🇼", conf: "CONCACAF" },
   { code: "EGY", name: "Egito", flag: "🇪🇬", conf: "CAF" },
   { code: "EQU", name: "Equador", flag: "🇪🇨", conf: "CONMEBOL" },
   { code: "SCO", name: "Escócia", flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", conf: "UEFA" },
@@ -763,85 +751,6 @@ notesEl.addEventListener("input", () => {
   state.notes = notesEl.value;
   clearTimeout(notesTimeout);
   notesTimeout = setTimeout(() => pushNotes(state.notes), 700);
-});
-
-// === BACKUP ===
-function downloadBackup(suffix) {
-  const data = JSON.stringify(state, null, 2);
-  const blob = new Blob([data], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const dateStr = new Date().toISOString().slice(0,10);
-  const sufx = suffix ? `_${suffix}` : "";
-  a.href = url;
-  a.download = `panini2026_backup${sufx}_${dateStr}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-document.getElementById("btn-export").addEventListener("click", () => {
-  downloadBackup("");
-});
-
-document.getElementById("btn-import").addEventListener("click", () => {
-  document.getElementById("file-import").click();
-});
-
-document.getElementById("file-import").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (!confirm("Restaurar o backup vai SUBSTITUIR a coleção compartilhada atual no Firebase. Todos os celulares conectados serão atualizados. Continuar?")) {
-    e.target.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = async (ev) => {
-    try {
-      const data = JSON.parse(ev.target.result);
-      if (data && typeof data === "object") {
-        const newStickers = data.stickers || {};
-        const newNotes = data.notes || "";
-        await set(ref(db, COLLECTION_PATH), { stickers: newStickers, notes: newNotes });
-        alert("✅ Backup restaurado!");
-      } else {
-        alert("Arquivo de backup inválido.");
-      }
-    } catch (err) {
-      alert("Erro ao ler o arquivo: " + err.message);
-    }
-  };
-  reader.readAsText(file);
-});
-
-// === LIMPAR (com senha + backup automático) ===
-document.getElementById("btn-reset").addEventListener("click", async () => {
-  const password = prompt("🔒 Digite a senha para limpar a coleção:");
-  if (password === null) return; // cancelou
-  if (password !== RESET_PASSWORD) {
-    alert("❌ Senha incorreta.");
-    return;
-  }
-
-  if (!confirm("⚠️ ATENÇÃO\n\nIsso vai apagar TUDO da coleção compartilhada (figurinhas + anotações) em TODOS os celulares conectados.\n\n📥 Um backup será baixado automaticamente antes da limpeza.\n\nContinuar?")) return;
-
-  // Baixa backup automaticamente antes de limpar
-  try {
-    downloadBackup("pre-reset");
-  } catch (e) {
-    if (!confirm("Não consegui salvar o backup automático. Continuar com a limpeza mesmo assim?")) return;
-  }
-
-  // Aguarda o navegador iniciar o download antes de limpar
-  await new Promise(r => setTimeout(r, 800));
-
-  try {
-    await set(ref(db, COLLECTION_PATH), { stickers: {}, notes: "" });
-    alert("✅ Coleção zerada.\n\n📥 Backup salvo em Downloads (panini2026_backup_pre-reset_DATA.json).");
-  } catch (e) {
-    alert("Erro ao limpar: " + e.message);
-  }
 });
 
 document.getElementById("btn-trades").addEventListener("click", () => {
