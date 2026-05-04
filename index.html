@@ -23,6 +23,7 @@
   --dupe: #f59e0b;
   --missing: #4b5575;
   --danger: #ef4444;
+  --team-photo: #2563eb;
 }
 html, body {
   background: var(--bg);
@@ -178,6 +179,10 @@ html, body {
   cursor: pointer;
 }
 .action-btn:active { background: var(--bg-card-hover); }
+.action-btn.danger {
+  color: var(--danger);
+  border-color: rgba(239,68,68,0.3);
+}
 .legend {
   background: var(--bg-card);
   margin: 12px;
@@ -297,6 +302,12 @@ html, body {
 .sticker.dupe::after { display: none; }
 .sticker.metallic { border-color: var(--accent); border-style: dashed; }
 .sticker.metallic .code::before { content: "✦ "; color: var(--accent); }
+.sticker.team-photo {
+  border-color: var(--team-photo);
+  border-style: solid;
+  border-width: 2px;
+}
+.sticker.team-photo .code::before { content: "📷 "; }
 .sticker.hidden { display: none; }
 .notes-section {
   padding: 14px 12px;
@@ -385,14 +396,14 @@ html, body {
     <button class="action-btn" id="btn-trades">🤝 Lista Troca</button>
     <button class="action-btn" id="btn-export">⬇ Backup</button>
     <button class="action-btn" id="btn-import">⬆ Restaurar</button>
-    <button class="action-btn" id="btn-reset">🗑 Limpar</button>
+    <button class="action-btn danger" id="btn-reset">🔒 Limpar</button>
   </div>
 </div>
 
 <div class="legend">
-  <strong>Coleção compartilhada:</strong> tudo que você marcar aqui aparece automaticamente em qualquer outro celular conectado a este álbum.<br>
+  <strong>Coleção compartilhada:</strong> tudo que você marcar aparece automaticamente nos outros celulares conectados.<br>
   <strong>Como usar:</strong> 1 toque = <strong style="color:var(--have)">tenho</strong>. Toques seguintes = somam <strong style="color:var(--dupe)">repetidas</strong> (+1, +2, +3…). Pressione e segure (~½s) para zerar.<br>
-  <span style="color:var(--accent)">✦</span> = figurinha metalizada (escudos das seleções e algumas especiais — 68 no total).
+  <span style="color:var(--accent)">✦</span> = metalizada · 📷 = foto do time · 🎴 WAP 00 = "We Are Panini" (abre o álbum).
 </div>
 
 <div id="album"></div>
@@ -425,9 +436,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const COLLECTION_PATH = "album/main"; // caminho compartilhado da família
+const COLLECTION_PATH = "album/main";
 
-// === DADOS: 48 seleções ===
+// Senha de proteção do botão Limpar.
+// IMPORTANTE: o JavaScript é público (qualquer um vê esta linha no código fonte).
+// Esta senha serve apenas como TRAVA contra cliques acidentais, não como segurança real.
+const RESET_PASSWORD = "panini2026";
+
+// === DADOS: 48 seleções classificadas para a Copa 2026 ===
 const TEAMS = [
   { code: "RSA", name: "África do Sul", flag: "🇿🇦", conf: "CAF" },
   { code: "GER", name: "Alemanha", flag: "🇩🇪", conf: "UEFA" },
@@ -456,6 +472,7 @@ const TEAMS = [
   { code: "FRA", name: "França", flag: "🇫🇷", conf: "UEFA" },
   { code: "GHA", name: "Gana", flag: "🇬🇭", conf: "CAF" },
   { code: "HAI", name: "Haiti", flag: "🇭🇹", conf: "CONCACAF" },
+  { code: "NED", name: "Holanda", flag: "🇳🇱", conf: "UEFA" },
   { code: "ENG", name: "Inglaterra", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", conf: "UEFA" },
   { code: "IRN", name: "Irã", flag: "🇮🇷", conf: "AFC" },
   { code: "IRQ", name: "Iraque", flag: "🇮🇶", conf: "AFC" },
@@ -465,7 +482,6 @@ const TEAMS = [
   { code: "MEX", name: "México (sede)", flag: "🇲🇽", conf: "CONCACAF" },
   { code: "NOR", name: "Noruega", flag: "🇳🇴", conf: "UEFA" },
   { code: "NZL", name: "Nova Zelândia", flag: "🇳🇿", conf: "OFC" },
-  { code: "NED", name: "Países Baixos", flag: "🇳🇱", conf: "UEFA" },
   { code: "PAN", name: "Panamá", flag: "🇵🇦", conf: "CONCACAF" },
   { code: "PAR", name: "Paraguai", flag: "🇵🇾", conf: "CONMEBOL" },
   { code: "POR", name: "Portugal", flag: "🇵🇹", conf: "UEFA" },
@@ -479,23 +495,45 @@ const TEAMS = [
   { code: "UZB", name: "Uzbequistão", flag: "🇺🇿", conf: "AFC" }
 ];
 
-const BRA_PLAYERS = [
-  "Alisson","Bento","Marquinhos","Éder Militão","Gabriel Magalhães",
-  "Danilo","Wesley","Lucas Paquetá","Casemiro","Bruno Guimarães",
-  "Luiz Henrique","Vinícius Jr.","Rodrygo","João Pedro","Matheus Cunha",
-  "Gabriel Martinelli","Raphinha","Estêvão"
-];
+// Brasil: nomes confirmados pelo álbum físico, mapeados por posição
+const BRA_PLAYERS = {
+  2: "Alisson",
+  3: "Bento",
+  4: "Marquinhos",
+  5: "Éder Militão",
+  6: "Gabriel Magalhães",
+  7: "Danilo",
+  8: "Wesley",
+  9: "Lucas Paquetá",
+  10: "Casemiro",
+  11: "Bruno Guimarães",
+  12: "Luiz Henrique",
+  14: "Vinícius Júnior",
+  15: "Rodrygo",
+  16: "João Pedro",
+  17: "Matheus Cunha",
+  18: "Gabriel Martinelli",
+  19: "Raphinha",
+  20: "Estêvão"
+};
 
+// === ESTRUTURA DO ÁLBUM ===
+// Por seleção (20 cromos):
+//   pos 1 = Escudo (metalizada)
+//   pos 2-12 = 11 jogadores
+//   pos 13 = Foto do time
+//   pos 14-20 = 7 jogadores
+// Especiais: FWC 1 a 19
 const STICKERS_PER_TEAM = 20;
-const SPECIAL_COUNT = 20;
+const SPECIAL_COUNT = 19;
+const TOTAL_STICKERS = 1 + SPECIAL_COUNT + TEAMS.length * STICKERS_PER_TEAM; // 1 (WAP) + 19 + 48*20 = 980
 
-// === ESTADO LOCAL (espelho do Firebase) ===
+// === ESTADO LOCAL ===
 let state = { stickers: {}, notes: "" };
 let isOnline = false;
 let initialLoadDone = false;
 let suppressNotesPush = false;
 
-// Indicador de status
 const syncStatusEl = document.getElementById("sync-status");
 function setSyncStatus(status, text) {
   syncStatusEl.classList.remove("online", "offline", "syncing");
@@ -505,7 +543,6 @@ function setSyncStatus(status, text) {
 
 function getStickerState(id) { return state.stickers[id] || 0; }
 
-// Atualiza Firebase quando muda uma figurinha (debounce simples por chave)
 async function pushSticker(id, val) {
   if (!isOnline) return;
   try {
@@ -536,12 +573,19 @@ function setStickerState(id, val) {
   pushSticker(id, val);
 }
 
+// Rótulo da figurinha conforme a posição
 function getPositionLabel(teamCode, pos) {
-  if (pos === 1) return "Capa/Time";
-  if (pos === 2) return "Escudo";
-  const playerIdx = pos - 3;
-  if (teamCode === "BRA") return BRA_PLAYERS[playerIdx];
-  return `Jogador ${playerIdx + 1}`;
+  if (pos === 1) return "Escudo";
+  if (pos === 13) return "Foto do time";
+  if (teamCode === "BRA") return BRA_PLAYERS[pos] || `Jogador ${pos}`;
+  return "Jogador";
+}
+
+// Tipo da figurinha (para CSS): metallic, team-photo, ou normal
+function getStickerType(pos) {
+  if (pos === 1) return "metallic";
+  if (pos === 13) return "team-photo";
+  return null;
 }
 
 // === RENDERIZAÇÃO ===
@@ -549,22 +593,31 @@ function renderAlbum() {
   const container = document.getElementById("album");
   let html = "";
 
+  // We Are Panini (figurinha 00 — abre o álbum)
+  html += `<div class="section" data-section="wap" data-team="we are panini abertura wap">
+    <div class="section-title"><h2>🎴 We Are Panini</h2><span class="count" id="count-wap">0/1</span></div>
+    <div class="stickers">`;
+  html += stickerHTML(`WAP-00`, `WAP 00`, "We Are Panini", null);
+  html += `</div></div>`;
+
+  // Especiais (FWC 1 a 19)
   html += `<div class="section" data-section="special" data-team="especiais especial">
     <div class="section-title"><h2>⭐ Especiais (Abertura)</h2><span class="count" id="count-special">0/${SPECIAL_COUNT}</span></div>
     <div class="stickers">`;
   for (let i = 1; i <= SPECIAL_COUNT; i++) {
-    html += stickerHTML(`FWC-${i}`, `FWC ${i}`, "Especial", true);
+    html += stickerHTML(`FWC-${i}`, `FWC ${i}`, "Especial", "metallic");
   }
   html += `</div></div>`;
 
+  // Seleções
   for (const team of TEAMS) {
     html += `<div class="section" data-section="${team.code}" data-team="${team.name.toLowerCase()}">
       <div class="section-title"><h2>${team.flag} ${team.name} <span style="color:var(--text-dim);font-size:10px;font-weight:500;letter-spacing:0">(${team.conf})</span></h2><span class="count" id="count-${team.code}">0/${STICKERS_PER_TEAM}</span></div>
       <div class="stickers">`;
     for (let i = 1; i <= STICKERS_PER_TEAM; i++) {
       const label = getPositionLabel(team.code, i);
-      const isMetallic = (i === 2);
-      html += stickerHTML(`${team.code}-${i}`, `${team.code} ${i}`, label, isMetallic);
+      const type = getStickerType(i);
+      html += stickerHTML(`${team.code}-${i}`, `${team.code} ${i}`, label, type);
     }
     html += `</div></div>`;
   }
@@ -611,8 +664,10 @@ function renderAlbum() {
   });
 }
 
-function stickerHTML(id, code, name, metallic) {
-  const cls = metallic ? "sticker metallic" : "sticker";
+function stickerHTML(id, code, name, type) {
+  let cls = "sticker";
+  if (type === "metallic") cls += " metallic";
+  else if (type === "team-photo") cls += " team-photo";
   return `<div class="${cls}" data-id="${id}" data-name="${name.toLowerCase()}" data-code="${code.toLowerCase()}">
     <div class="dupe-badge"></div>
     <div class="code">${code}</div>
@@ -648,16 +703,15 @@ function updateSectionCount(sectionEl) {
 }
 
 function updateStats() {
-  const total = SPECIAL_COUNT + TEAMS.length * STICKERS_PER_TEAM;
   let have = 0, dupes = 0;
   for (const id in state.stickers) {
     const v = state.stickers[id];
     if (v >= 1) have++;
     if (v >= 2) dupes += (v - 1);
   }
-  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-total").textContent = TOTAL_STICKERS;
   document.getElementById("stat-have").textContent = have;
-  document.getElementById("stat-miss").textContent = total - have;
+  document.getElementById("stat-miss").textContent = TOTAL_STICKERS - have;
   document.getElementById("stat-dupe").textContent = dupes;
 }
 
@@ -708,21 +762,27 @@ let notesTimeout = null;
 notesEl.addEventListener("input", () => {
   state.notes = notesEl.value;
   clearTimeout(notesTimeout);
-  notesTimeout = setTimeout(() => pushNotes(state.notes), 700); // debounce 700ms
+  notesTimeout = setTimeout(() => pushNotes(state.notes), 700);
 });
 
-// === BACKUP / RESTORE ===
-document.getElementById("btn-export").addEventListener("click", () => {
+// === BACKUP ===
+function downloadBackup(suffix) {
   const data = JSON.stringify(state, null, 2);
   const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
+  const dateStr = new Date().toISOString().slice(0,10);
+  const sufx = suffix ? `_${suffix}` : "";
   a.href = url;
-  a.download = `panini2026_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `panini2026_backup${sufx}_${dateStr}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+document.getElementById("btn-export").addEventListener("click", () => {
+  downloadBackup("");
 });
 
 document.getElementById("btn-import").addEventListener("click", () => {
@@ -743,7 +803,6 @@ document.getElementById("file-import").addEventListener("change", (e) => {
       if (data && typeof data === "object") {
         const newStickers = data.stickers || {};
         const newNotes = data.notes || "";
-        // Substitui todo o nó no Firebase
         await set(ref(db, COLLECTION_PATH), { stickers: newStickers, notes: newNotes });
         alert("✅ Backup restaurado!");
       } else {
@@ -756,11 +815,30 @@ document.getElementById("file-import").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 
+// === LIMPAR (com senha + backup automático) ===
 document.getElementById("btn-reset").addEventListener("click", async () => {
-  if (!confirm("⚠️ ATENÇÃO: isso vai apagar TUDO da coleção compartilhada no Firebase (figurinhas + anotações). Todos os celulares conectados serão zerados. Continuar?")) return;
+  const password = prompt("🔒 Digite a senha para limpar a coleção:");
+  if (password === null) return; // cancelou
+  if (password !== RESET_PASSWORD) {
+    alert("❌ Senha incorreta.");
+    return;
+  }
+
+  if (!confirm("⚠️ ATENÇÃO\n\nIsso vai apagar TUDO da coleção compartilhada (figurinhas + anotações) em TODOS os celulares conectados.\n\n📥 Um backup será baixado automaticamente antes da limpeza.\n\nContinuar?")) return;
+
+  // Baixa backup automaticamente antes de limpar
+  try {
+    downloadBackup("pre-reset");
+  } catch (e) {
+    if (!confirm("Não consegui salvar o backup automático. Continuar com a limpeza mesmo assim?")) return;
+  }
+
+  // Aguarda o navegador iniciar o download antes de limpar
+  await new Promise(r => setTimeout(r, 800));
+
   try {
     await set(ref(db, COLLECTION_PATH), { stickers: {}, notes: "" });
-    alert("Coleção zerada.");
+    alert("✅ Coleção zerada.\n\n📥 Backup salvo em Downloads (panini2026_backup_pre-reset_DATA.json).");
   } catch (e) {
     alert("Erro ao limpar: " + e.message);
   }
@@ -771,6 +849,14 @@ document.getElementById("btn-trades").addEventListener("click", () => {
   let preciso = "🔴 *PRECISO (faltantes)*\n";
   let hasDupes = false, hasMiss = false;
 
+  // We Are Panini — Tenho
+  const wapDup = state.stickers["WAP-00"];
+  if (wapDup >= 2) {
+    tenho += `\n🎴 We Are Panini:\n  WAP 00 (x${wapDup-1})\n`;
+    hasDupes = true;
+  }
+
+  // Especiais — Tenho
   const espDupes = [];
   for (let i = 1; i <= SPECIAL_COUNT; i++) {
     const v = state.stickers[`FWC-${i}`];
@@ -778,6 +864,7 @@ document.getElementById("btn-trades").addEventListener("click", () => {
   }
   if (espDupes.length) tenho += `\n⭐ Especiais:\n  ${espDupes.join(", ")}\n`;
 
+  // Seleções — Tenho
   for (const team of TEAMS) {
     const lines = [];
     for (let i = 1; i <= STICKERS_PER_TEAM; i++) {
@@ -793,12 +880,20 @@ document.getElementById("btn-trades").addEventListener("click", () => {
     }
   }
 
+  // We Are Panini — Preciso
+  if (!state.stickers["WAP-00"]) {
+    preciso += `\n🎴 We Are Panini:\n  WAP 00\n`;
+    hasMiss = true;
+  }
+
+  // Especiais — Preciso
   const espMiss = [];
   for (let i = 1; i <= SPECIAL_COUNT; i++) {
     if (!state.stickers[`FWC-${i}`]) { espMiss.push(`FWC ${i}`); hasMiss = true; }
   }
   if (espMiss.length) preciso += `\n⭐ Especiais:\n  ${espMiss.join(", ")}\n`;
 
+  // Seleções — Preciso
   for (const team of TEAMS) {
     const miss = [];
     for (let i = 1; i <= STICKERS_PER_TEAM; i++) {
@@ -850,7 +945,6 @@ onValue(collectionRef, (snapshot) => {
   state.stickers = data.stickers || {};
   const remoteNotes = data.notes || "";
 
-  // Atualiza textarea só se mudou (evita conflito de cursor)
   if (notesEl.value !== remoteNotes && document.activeElement !== notesEl) {
     suppressNotesPush = true;
     notesEl.value = remoteNotes;
@@ -880,7 +974,6 @@ onValue(collectionRef, (snapshot) => {
   }
 });
 
-// Detecta status online/offline
 const connectedRef = ref(db, ".info/connected");
 onValue(connectedRef, (snap) => {
   if (snap.val() === true) {
@@ -896,7 +989,7 @@ onValue(connectedRef, (snap) => {
 renderAlbum();
 updateStats();
 
-// Timeout de segurança: se em 8 segundos não conectou, libera a tela mesmo assim
+// Timeout de segurança: se em 8s não conectou, libera a tela
 setTimeout(() => {
   if (!initialLoadDone) {
     initialLoadDone = true;
