@@ -396,7 +396,7 @@ html, body {
 
 <div class="legend">
   <strong>Coleção compartilhada:</strong> tudo que você marcar aparece automaticamente nos outros celulares conectados.<br>
-  <strong>Como usar:</strong> 1 toque = <strong style="color:var(--have)">tenho</strong>. Toques seguintes = somam <strong style="color:var(--dupe)">repetidas</strong> (+1, +2, +3…). Pressione e segure (~½s) para zerar.<br>
+  <strong>Como usar:</strong> 1 toque = <strong style="color:var(--have)">tenho</strong>. Toques seguintes = somam <strong style="color:var(--dupe)">repetidas</strong> (+1, +2, +3…). 2 toques rápidos = diminui 1. Pressione e segure (~½s) para zerar.<br>
   <span style="color:var(--accent)">✦</span> = metalizada · 📷 = foto do time · 🎴 WAP 00 = "We Are Panini" (abre o álbum).
 </div>
 
@@ -615,9 +615,11 @@ function renderAlbum() {
   container.querySelectorAll(".sticker").forEach(el => {
     let pressTimer = null;
     let longPressed = false;
+    let tapTimer = null;            // timer para aguardar possível segundo toque
+    let pendingTap = false;          // há um primeiro toque aguardando confirmação
+    const DOUBLE_TAP_DELAY = 280;    // ms para considerar como toque duplo
 
-    const onTap = () => {
-      if (longPressed) { longPressed = false; return; }
+    const incrementSticker = () => {
       const id = el.dataset.id;
       const cur = getStickerState(id);
       setStickerState(id, cur + 1);
@@ -625,7 +627,39 @@ function renderAlbum() {
       updateSectionCount(el.closest(".section"));
     };
 
+    const decrementSticker = () => {
+      const id = el.dataset.id;
+      const cur = getStickerState(id);
+      if (cur <= 0) return;          // já está zerado, nada a decrementar
+      setStickerState(id, cur - 1);
+      paintSticker(el, getStickerState(id));
+      updateSectionCount(el.closest(".section"));
+      if (navigator.vibrate) navigator.vibrate(20);
+    };
+
+    const onTap = () => {
+      if (longPressed) { longPressed = false; return; }
+
+      if (pendingTap) {
+        // Segundo toque dentro da janela: é toque duplo → decrementa
+        clearTimeout(tapTimer);
+        pendingTap = false;
+        decrementSticker();
+      } else {
+        // Primeiro toque: aguarda para ver se vem um segundo
+        pendingTap = true;
+        tapTimer = setTimeout(() => {
+          pendingTap = false;
+          incrementSticker();
+        }, DOUBLE_TAP_DELAY);
+      }
+    };
+
     const onLongPress = () => {
+      // Cancela qualquer toque pendente antes de zerar
+      clearTimeout(tapTimer);
+      pendingTap = false;
+
       const id = el.dataset.id;
       setStickerState(id, 0);
       paintSticker(el, 0);
