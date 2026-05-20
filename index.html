@@ -165,7 +165,7 @@ html, body {
 }
 .actions {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
   margin-top: 8px;
 }
@@ -390,7 +390,8 @@ html, body {
     <button class="filter-btn" data-filter="dupe">Repetidas</button>
   </div>
   <div class="actions">
-    <button class="action-btn" id="btn-trades">🤝 Gerar lista para troca (copiar para WhatsApp)</button>
+    <button class="action-btn" id="btn-trades">🟢 Lista de repetidas (para oferecer)</button>
+    <button class="action-btn" id="btn-needs">🔴 Lista de faltantes (para pedir)</button>
   </div>
 </div>
 
@@ -787,19 +788,19 @@ notesEl.addEventListener("input", () => {
   notesTimeout = setTimeout(() => pushNotes(state.notes), 700);
 });
 
-document.getElementById("btn-trades").addEventListener("click", () => {
+// Gera a lista de figurinhas repetidas no mesmo formato que vinha sendo usado
+function buildDuplicatesList() {
   let tenho = "🟢 *TENHO PARA TROCA (repetidas)*\n";
-  let preciso = "🔴 *PRECISO (faltantes)*\n";
-  let hasDupes = false, hasMiss = false;
+  let hasDupes = false;
 
-  // We Are Panini — Tenho
+  // We Are Panini
   const wapDup = state.stickers["WAP-00"];
   if (wapDup >= 2) {
     tenho += `\n🎴 We Are Panini:\n  WAP 00 (x${wapDup-1})\n`;
     hasDupes = true;
   }
 
-  // Especiais — Tenho
+  // Especiais
   const espDupes = [];
   for (let i = 1; i <= SPECIAL_COUNT; i++) {
     const v = state.stickers[`FWC-${i}`];
@@ -807,7 +808,7 @@ document.getElementById("btn-trades").addEventListener("click", () => {
   }
   if (espDupes.length) tenho += `\n⭐ Especiais:\n  ${espDupes.join(", ")}\n`;
 
-  // Seleções — Tenho
+  // Seleções
   for (const team of TEAMS) {
     const lines = [];
     for (let i = 1; i <= STICKERS_PER_TEAM; i++) {
@@ -823,24 +824,37 @@ document.getElementById("btn-trades").addEventListener("click", () => {
     }
   }
 
-  // We Are Panini — Preciso
+  let txt = `📔 *Álbum Copa 2026 — Panini*\n${new Date().toLocaleDateString("pt-BR")}\n\n`;
+  txt += hasDupes ? tenho : tenho + "\n_(nenhuma repetida ainda)_\n";
+  return txt;
+}
+
+// Gera a lista de figurinhas que faltam, no mesmo formato
+function buildMissingList() {
+  let preciso = "🔴 *PRECISO (faltantes)*\n";
+  let hasMiss = false;
+
+  // We Are Panini
   if (!state.stickers["WAP-00"]) {
     preciso += `\n🎴 We Are Panini:\n  WAP 00\n`;
     hasMiss = true;
   }
 
-  // Especiais — Preciso
+  // Especiais
   const espMiss = [];
   for (let i = 1; i <= SPECIAL_COUNT; i++) {
     if (!state.stickers[`FWC-${i}`]) { espMiss.push(`FWC ${i}`); hasMiss = true; }
   }
   if (espMiss.length) preciso += `\n⭐ Especiais:\n  ${espMiss.join(", ")}\n`;
 
-  // Seleções — Preciso
+  // Seleções
   for (const team of TEAMS) {
     const miss = [];
     for (let i = 1; i <= STICKERS_PER_TEAM; i++) {
-      if (!state.stickers[`${team.code}-${i}`]) miss.push(`${i}`);
+      if (!state.stickers[`${team.code}-${i}`]) {
+        const label = getPositionLabel(team.code, i);
+        miss.push(`${i} ${label}`);
+      }
     }
     if (miss.length) {
       preciso += `\n${team.flag} ${team.name}:\n  ${miss.join(", ")}\n`;
@@ -849,20 +863,31 @@ document.getElementById("btn-trades").addEventListener("click", () => {
   }
 
   let txt = `📔 *Álbum Copa 2026 — Panini*\n${new Date().toLocaleDateString("pt-BR")}\n\n`;
-  txt += hasDupes ? tenho : tenho + "\n_(nenhuma repetida ainda)_\n";
-  txt += "\n";
   txt += hasMiss ? preciso : preciso + "\n_(álbum completo!)_\n";
+  return txt;
+}
 
+function copyToClipboard(txt, successMsg) {
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(txt).then(() => {
-      alert("✅ Lista copiada!\n\nCole no WhatsApp ou onde for trocar.");
-    }).catch(() => fallbackCopy(txt));
+      alert(successMsg);
+    }).catch(() => fallbackCopy(txt, successMsg));
   } else {
-    fallbackCopy(txt);
+    fallbackCopy(txt, successMsg);
   }
+}
+
+document.getElementById("btn-trades").addEventListener("click", () => {
+  const txt = buildDuplicatesList();
+  copyToClipboard(txt, "✅ Lista de REPETIDAS copiada!\n\nCole no WhatsApp para oferecer suas figurinhas.");
 });
 
-function fallbackCopy(txt) {
+document.getElementById("btn-needs").addEventListener("click", () => {
+  const txt = buildMissingList();
+  copyToClipboard(txt, "✅ Lista de FALTANTES copiada!\n\nCole no WhatsApp para pedir as figurinhas que faltam.");
+});
+
+function fallbackCopy(txt, successMsg) {
   const ta = document.createElement("textarea");
   ta.value = txt;
   ta.style.position = "fixed";
@@ -873,7 +898,7 @@ function fallbackCopy(txt) {
   ta.focus(); ta.select();
   try {
     document.execCommand("copy");
-    alert("✅ Lista copiada!\n\nCole no WhatsApp ou onde for trocar.");
+    alert(successMsg || "✅ Lista copiada!");
   } catch (e) {
     prompt("Copie manualmente:", txt);
   }
