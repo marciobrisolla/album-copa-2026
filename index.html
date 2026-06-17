@@ -180,6 +180,48 @@ html, body {
   cursor: pointer;
 }
 .action-btn:active { background: var(--bg-card-hover); }
+.needs-panel {
+  background: var(--bg-card);
+  margin: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.needs-panel.done { border-color: var(--have-dim); }
+.needs-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.needs-panel.done .needs-title { color: var(--have); margin-bottom: 0; }
+.needs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.needs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--missing);
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.needs-chip:hover { background: var(--bg-card-hover); border-color: var(--accent-dim); }
+.needs-n {
+  background: var(--missing);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 0 4px;
+}
 .legend {
   background: var(--bg-card);
   margin: 12px;
@@ -380,6 +422,8 @@ html, body {
     <div class="stat stat-dupe"><div class="stat-value" id="stat-dupe">0</div><div class="stat-label">Repetidas</div></div>
   </div>
 </div>
+
+<div class="needs-panel" id="needs-panel"></div>
 
 <div class="toolbar">
   <input type="text" class="search" id="search" placeholder="🔍 Buscar seleção, jogador, código (ex: BRA 5)">
@@ -736,6 +780,54 @@ function updateStats() {
   document.getElementById("stat-have").textContent = have;
   document.getElementById("stat-miss").textContent = TOTAL_STICKERS - have;
   document.getElementById("stat-dupe").textContent = dupes;
+  renderNeedsPanel();
+}
+
+// === PAINEL: SELEÇÕES QUE AINDA PRECISAM DE FIGURINHAS ===
+function renderNeedsPanel() {
+  const panel = document.getElementById("needs-panel");
+  if (!panel) return;
+  const chips = [];
+
+  // We Are Panini
+  if (getStickerState("WAP-00") < 1) chips.push({ key: "wap", label: "🎴 WAP 00", miss: 1 });
+
+  // Especiais
+  let espMiss = 0;
+  for (let i = 1; i <= SPECIAL_COUNT; i++) {
+    if (getStickerState(`FWC-${i}`) < 1) espMiss++;
+  }
+  if (espMiss > 0) chips.push({ key: "special", label: "⭐ Especiais", miss: espMiss });
+
+  // Seleções
+  for (const team of TEAMS) {
+    let miss = 0;
+    for (let i = 1; i <= STICKERS_PER_TEAM; i++) {
+      if (getStickerState(`${team.code}-${i}`) < 1) miss++;
+    }
+    if (miss > 0) chips.push({ key: team.code, label: `${team.flag} ${team.name}`, miss });
+  }
+
+  if (chips.length === 0) {
+    panel.className = "needs-panel done";
+    panel.innerHTML = `<div class="needs-title">✅ Álbum completo!</div>`;
+    return;
+  }
+
+  panel.className = "needs-panel";
+  const totalMiss = chips.reduce((a, c) => a + c.miss, 0);
+  const head = `<div class="needs-title">🎯 Ainda preciso · ${chips.length} ${chips.length === 1 ? "bloco" : "blocos"} · ${totalMiss} ${totalMiss === 1 ? "figurinha" : "figurinhas"}</div>`;
+  const body = chips.map(c =>
+    `<button class="needs-chip" data-goto="${c.key}">${c.label}<span class="needs-n">${c.miss}</span></button>`
+  ).join("");
+  panel.innerHTML = head + `<div class="needs-chips">${body}</div>`;
+
+  panel.querySelectorAll(".needs-chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = document.querySelector(`.section[data-section="${btn.dataset.goto}"]`);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
 
 // === FILTRO E BUSCA ===
